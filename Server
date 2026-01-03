@@ -1,0 +1,147 @@
+--// Services
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+
+--// Executor HTTP
+local request =
+    (syn and syn.request)
+    or (http and http.request)
+    or http_request
+    or request
+
+if not request then
+    warn("No HTTP request function available")
+    return
+end
+
+--// CONFIG
+local FEED_URL = "https://dry-lizards-deny.loca.lt/messages"
+
+--// GUI
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.fromOffset(360, 420)
+Main.Position = UDim2.fromScale(0.5, 0.5) - UDim2.fromOffset(180, 210)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.BorderSizePixel = 0
+Instance.new("UICorner", Main)
+
+local Status = Instance.new("TextLabel", Main)
+Status.Size = UDim2.new(1, -20, 0, 25)
+Status.Position = UDim2.fromOffset(10, 5)
+Status.Text = "📡 Connecting..."
+Status.BackgroundTransparency = 1
+Status.TextColor3 = Color3.new(1,1,1)
+Status.Font = Enum.Font.SourceSansBold
+Status.TextXAlignment = Enum.TextXAlignment.Left
+
+local Chat = Instance.new("ScrollingFrame", Main)
+Chat.Position = UDim2.fromOffset(10, 40)
+Chat.Size = UDim2.new(1, -20, 1, -110)
+Chat.CanvasSize = UDim2.new()
+Chat.ScrollBarThickness = 2
+Chat.BackgroundTransparency = 1
+Instance.new("UIListLayout", Chat).Padding = UDim.new(0, 8)
+
+local Input = Instance.new("TextBox", Main)
+Input.Position = UDim2.new(0, 10, 1, -55)
+Input.Size = UDim2.new(1, -20, 0, 45)
+Input.PlaceholderText = "Type message and press Enter"
+Input.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Input.TextColor3 = Color3.new(1,1,1)
+Input.ClearTextOnFocus = true
+Instance.new("UICorner", Input)
+
+--// Message UI
+local function addMessage(name, msg, userId)
+    local F = Instance.new("Frame", Chat)
+    F.Size = UDim2.new(1, 0, 0, 45)
+    F.BackgroundTransparency = 1
+    F.Name = "MsgFrame"
+
+    local Avatar = Instance.new("ImageLabel", F)
+    Avatar.Size = UDim2.fromOffset(40, 40)
+    Avatar.Image = userId
+        and ("https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=420&height=420&format=png")
+        or "rbxassetid://15243170423"
+    Instance.new("UICorner", Avatar).CornerRadius = UDim.new(1, 0)
+
+    local Text = Instance.new("TextLabel", F)
+    Text.Position = UDim2.fromOffset(50, 0)
+    Text.Size = UDim2.new(1, -50, 1, 0)
+    Text.RichText = true
+    Text.TextWrapped = true
+    Text.TextXAlignment = Enum.TextXAlignment.Left
+    Text.TextYAlignment = Enum.TextYAlignment.Top
+    Text.Font = Enum.Font.SourceSans
+    Text.TextSize = 16
+    Text.TextColor3 = Color3.new(1,1,1)
+    Text.BackgroundTransparency = 1
+    Text.Text = "<b>" .. name .. "</b>: " .. msg
+
+    Chat.CanvasPosition = Vector2.new(0, 1e6)
+end
+
+--// Relay loop
+local lastBody = ""
+
+task.spawn(function()
+    while task.wait(3) do
+        local ok, res = pcall(function()
+            return request({
+                Url = FEED_URL,
+                Method = "GET",
+                Headers = {
+                    ["User-Agent"] = "Mozilla/5.0",
+                    ["bypass-tunnel-reminder"] = "true"
+                }
+            })
+        end)
+
+        if not ok or not res or not res.Body then
+            Status.Text = "❌ Connection Failed"
+            Status.TextColor3 = Color3.fromRGB(255, 80, 80)
+            continue
+        end
+
+        if res.Body == lastBody or res.Body == "[]" then
+            Status.Text = "✅ Connected"
+            Status.TextColor3 = Color3.fromRGB(0, 255, 0)
+            continue
+        end
+
+        lastBody = res.Body
+
+        local success, data = pcall(function()
+            return HttpService:JSONDecode(res.Body)
+        end)
+
+        if not success or type(data) ~= "table" then
+            warn("Invalid JSON")
+            continue
+        end
+
+        for _, v in ipairs(Chat:GetChildren()) do
+            if v.Name == "MsgFrame" then
+                v:Destroy()
+            end
+        end
+
+        for i = #data, 1, -1 do
+            addMessage(
+                tostring(data[i].name or "Unknown"),
+                tostring(data[i].msg or ""),
+                data[i].userId
+            )
+        end
+    end
+end)
+
+--// Input clear (sending handled by Discord bot)
+Input.FocusLost:Connect(function(enter)
+    if enter then
+        Input.Text = ""
+    end
+end)

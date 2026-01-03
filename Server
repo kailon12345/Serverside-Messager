@@ -12,7 +12,8 @@ if not request then
 end
 
 --// CONFIG
-local FEED_URL = "https://dry-lizards-deny.loca.lt/messages"
+-- Updated with your current Ngrok link from the screenshot
+local FEED_URL = "https://subfractionary-gaylene-nonesthetic.ngrok-free.dev/messages"
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1456792417700286655/t5XoB-iOUF_vjz5dDMfEdYfbJRiH1CDl2fm3RJbpXB1DCErvugZS0GZj7JUKGgczT3GS"
 
 --// GUI SETUP
@@ -72,7 +73,7 @@ local function addMessage(name, msg, userId)
 
     local Avatar = Instance.new("ImageLabel", F)
     Avatar.Size = UDim2.fromOffset(40, 40)
-    -- Headshot Image
+    -- This fetches the headshot for the sender
     Avatar.Image = (userId and tonumber(userId)) 
         and ("https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=420&height=420&format=png")
         or "rbxassetid://15243170423"
@@ -89,7 +90,7 @@ local function addMessage(name, msg, userId)
     Text.TextSize = 16
     Text.TextColor3 = Color3.new(1,1,1)
     Text.BackgroundTransparency = 1
-    -- FORMAT: [Display Name]: Message
+    -- Requested Format: [Display Name]: Message
     Text.Text = "<b>[" .. name .. "]</b>: " .. msg
 
     Chat.CanvasPosition = Vector2.new(0, 1e6)
@@ -104,8 +105,7 @@ task.spawn(function()
                 Url = FEED_URL,
                 Method = "GET",
                 Headers = {
-                    ["User-Agent"] = "Mozilla/5.0",
-                    ["bypass-tunnel-reminder"] = "true"
+                    ["User-Agent"] = "Roblox-Internal"
                 }
             })
         end)
@@ -119,7 +119,6 @@ task.spawn(function()
                 local success, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
 
                 if success and type(data) == "table" then
-                    -- Clear list and rebuild
                     for _, v in ipairs(Chat:GetChildren()) do
                         if v.Name == "MsgFrame" then v:Destroy() end
                     end
@@ -135,175 +134,14 @@ task.spawn(function()
     end
 end)
 
---// Send Logic (Syncs UI instantly)
+--// Send Logic (Instant Sync)
 Input.FocusLost:Connect(function(enter)
     if enter and Input.Text ~= "" then
         local myMsg = Input.Text
         
-        -- 1. Add to our local UI immediately so we can see it
+        -- Show your own message locally immediately
         addMessage(LP.DisplayName, myMsg, LP.UserId)
 
-        -- 2. Send to Discord
-        pcall(function()
-            request({
-                Url = WEBHOOK_URL,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = HttpService:JSONEncode({
-                    ["content"] = myMsg,
-                    ["username"] = LP.DisplayName .. " (@" .. LP.Name .. ")"
-                })
-            })
-        end)
-        
-        Input.Text = ""
-    end
-end)--// Services
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
-
---// Executor HTTP
-local request = (syn and syn.request) or (http and http.request) or http_request or request
-
-if not request then
-    warn("No HTTP request function available")
-    return
-end
-
---// CONFIG
-local FEED_URL = "https://dry-lizards-deny.loca.lt/messages"
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1456792417700286655/t5XoB-iOUF_vjz5dDMfEdYfbJRiH1CDl2fm3RJbpXB1DCErvugZS0GZj7JUKGgczT3GS"
-
---// GUI SETUP
-local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-
-local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.fromOffset(360, 420)
-Main.Position = UDim2.fromScale(0.5, 0.5) - UDim2.fromOffset(180, 210)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true 
-Instance.new("UICorner", Main)
-
-local CloseBtn = Instance.new("TextButton", Main)
-CloseBtn.Size = UDim2.fromOffset(30, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 5)
-CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Color3.new(1,0,0)
-CloseBtn.BackgroundTransparency = 1
-CloseBtn.Font = Enum.Font.SourceSansBold
-CloseBtn.TextSize = 20
-CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-
-local Status = Instance.new("TextLabel", Main)
-Status.Size = UDim2.new(1, -50, 0, 25)
-Status.Position = UDim2.fromOffset(10, 5)
-Status.Text = "📡 Status: Connecting..."
-Status.BackgroundTransparency = 1
-Status.TextColor3 = Color3.new(1,1,1)
-Status.Font = Enum.Font.SourceSansBold
-Status.TextXAlignment = Enum.TextXAlignment.Left
-
-local Chat = Instance.new("ScrollingFrame", Main)
-Chat.Position = UDim2.fromOffset(10, 40)
-Chat.Size = UDim2.new(1, -20, 1, -110)
-Chat.CanvasSize = UDim2.new()
-Chat.ScrollBarThickness = 2
-Chat.BackgroundTransparency = 1
-Instance.new("UIListLayout", Chat).Padding = UDim.new(0, 8)
-
-local Input = Instance.new("TextBox", Main)
-Input.Position = UDim2.new(0, 10, 1, -55)
-Input.Size = UDim2.new(1, -20, 0, 45)
-Input.PlaceholderText = "Type message and press Enter"
-Input.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-Input.TextColor3 = Color3.new(1,1,1)
-Input.ClearTextOnFocus = true
-Instance.new("UICorner", Input)
-
---// Message UI Builder (Avatar + [Name]: Message)
-local function addMessage(name, msg, userId)
-    local F = Instance.new("Frame", Chat)
-    F.Size = UDim2.new(1, 0, 0, 45)
-    F.BackgroundTransparency = 1
-    F.Name = "MsgFrame"
-
-    local Avatar = Instance.new("ImageLabel", F)
-    Avatar.Size = UDim2.fromOffset(40, 40)
-    -- Headshot Image
-    Avatar.Image = (userId and tonumber(userId)) 
-        and ("https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=420&height=420&format=png")
-        or "rbxassetid://15243170423"
-    Instance.new("UICorner", Avatar).CornerRadius = UDim.new(1, 0)
-
-    local Text = Instance.new("TextLabel", F)
-    Text.Position = UDim2.fromOffset(50, 0)
-    Text.Size = UDim2.new(1, -50, 1, 0)
-    Text.RichText = true
-    Text.TextWrapped = true
-    Text.TextXAlignment = Enum.TextXAlignment.Left
-    Text.TextYAlignment = Enum.TextYAlignment.Top
-    Text.Font = Enum.Font.SourceSans
-    Text.TextSize = 16
-    Text.TextColor3 = Color3.new(1,1,1)
-    Text.BackgroundTransparency = 1
-    -- FORMAT: [Display Name]: Message
-    Text.Text = "<b>[" .. name .. "]</b>: " .. msg
-
-    Chat.CanvasPosition = Vector2.new(0, 1e6)
-end
-
---// Relay Fetch Loop
-local lastBody = ""
-task.spawn(function()
-    while task.wait(3) do
-        local ok, res = pcall(function()
-            return request({
-                Url = FEED_URL,
-                Method = "GET",
-                Headers = {
-                    ["User-Agent"] = "Mozilla/5.0",
-                    ["bypass-tunnel-reminder"] = "true"
-                }
-            })
-        end)
-
-        if ok and res and res.Body then
-            Status.Text = "✅ Connected"
-            Status.TextColor3 = Color3.fromRGB(0, 255, 0)
-
-            if res.Body ~= lastBody and res.Body ~= "[]" then
-                lastBody = res.Body
-                local success, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
-
-                if success and type(data) == "table" then
-                    -- Clear list and rebuild
-                    for _, v in ipairs(Chat:GetChildren()) do
-                        if v.Name == "MsgFrame" then v:Destroy() end
-                    end
-                    for i = #data, 1, -1 do
-                        addMessage(tostring(data[i].name or "Unknown"), tostring(data[i].msg or ""), data[i].userId)
-                    end
-                end
-            end
-        else
-            Status.Text = "❌ Relay Error"
-            Status.TextColor3 = Color3.fromRGB(255, 80, 80)
-        end
-    end
-end)
-
---// Send Logic (Syncs UI instantly)
-Input.FocusLost:Connect(function(enter)
-    if enter and Input.Text ~= "" then
-        local myMsg = Input.Text
-        
-        -- 1. Add to our local UI immediately so we can see it
-        addMessage(LP.DisplayName, myMsg, LP.UserId)
-
-        -- 2. Send to Discord
         pcall(function()
             request({
                 Url = WEBHOOK_URL,

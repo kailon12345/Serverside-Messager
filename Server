@@ -1,161 +1,142 @@
---// Services
-local HttpService = game:GetService("HttpService")
+-- [[ CONFIGURATION ]]
+local firebaseURL = "https://roblox-chat-script-default-rtdb.firebaseio.com/message.json"
+local webhookURL = "https://discord.com/api/webhooks/1456792417700286655/t5XoB-iOUF_vjz5dDMfEdYfbJRiH1CDl2fm3RJbpXB1DCErvugZS0GZj7JUKGgczT3GS"
+local lastMsg = ""
+
 local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local lp = Players.LocalPlayer
 
---// Executor HTTP
-local request = (syn and syn.request) or (http and http.request) or http_request or request
-
-if not request then
-    warn("No HTTP request function available")
-    return
-end
-
---// CONFIG
--- Updated with your current Ngrok link from the screenshot
-local FEED_URL = "https://subfractionary-gaylene-nonesthetic.ngrok-free.dev/messages"
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1456792417700286655/t5XoB-iOUF_vjz5dDMfEdYfbJRiH1CDl2fm3RJbpXB1DCErvugZS0GZj7JUKGgczT3GS"
-
---// GUI SETUP
-local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-
+-- [[ GUI CONSTRUCTION ]]
+local ScreenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.fromOffset(360, 420)
-Main.Position = UDim2.fromScale(0.5, 0.5) - UDim2.fromOffset(180, 210)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.Size = UDim2.new(0, 360, 0, 420)
+Main.Position = UDim2.new(0.5, -180, 0.5, -210)
+Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 Main.BorderSizePixel = 0
 Main.Active = true
-Main.Draggable = true 
-Instance.new("UICorner", Main)
+Main.Draggable = true
 
-local CloseBtn = Instance.new("TextButton", Main)
-CloseBtn.Size = UDim2.fromOffset(30, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 5)
+local TopBar = Instance.new("Frame", Main)
+TopBar.Size = UDim2.new(1, 0, 0, 35)
+TopBar.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+
+local Title = Instance.new("TextLabel", TopBar)
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.Text = "XENO MULTI-CHANNEL CHAT"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundTransparency = 1
+Title.TextXAlignment = "Left"
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 18
+
+local CloseBtn = Instance.new("TextButton", TopBar)
+CloseBtn.Size = UDim2.new(0, 35, 0, 35)
+CloseBtn.Position = UDim2.new(1, -35, 0, 0)
 CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Color3.new(1,0,0)
-CloseBtn.BackgroundTransparency = 1
+CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+CloseBtn.TextColor3 = Color3.new(1, 1, 1)
 CloseBtn.Font = Enum.Font.SourceSansBold
-CloseBtn.TextSize = 20
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
-local Status = Instance.new("TextLabel", Main)
-Status.Size = UDim2.new(1, -50, 0, 25)
-Status.Position = UDim2.fromOffset(10, 5)
-Status.Text = "📡 Status: Connecting..."
-Status.BackgroundTransparency = 1
-Status.TextColor3 = Color3.new(1,1,1)
-Status.Font = Enum.Font.SourceSansBold
-Status.TextXAlignment = Enum.TextXAlignment.Left
+local Scroll = Instance.new("ScrollingFrame", Main)
+Scroll.Size = UDim2.new(1, -20, 1, -90)
+Scroll.Position = UDim2.new(0, 10, 0, 45)
+Scroll.BackgroundTransparency = 1
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+Scroll.ScrollBarThickness = 3
+Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
-local Chat = Instance.new("ScrollingFrame", Main)
-Chat.Position = UDim2.fromOffset(10, 40)
-Chat.Size = UDim2.new(1, -20, 1, -110)
-Chat.CanvasSize = UDim2.new()
-Chat.ScrollBarThickness = 2
-Chat.BackgroundTransparency = 1
-Instance.new("UIListLayout", Chat).Padding = UDim.new(0, 8)
+local Layout = Instance.new("UIListLayout", Scroll)
+Layout.Padding = UDim.new(0, 8)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
 
 local Input = Instance.new("TextBox", Main)
-Input.Position = UDim2.new(0, 10, 1, -55)
-Input.Size = UDim2.new(1, -20, 0, 45)
-Input.PlaceholderText = "Type message and press Enter"
-Input.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-Input.TextColor3 = Color3.new(1,1,1)
-Input.ClearTextOnFocus = true
-Instance.new("UICorner", Input)
+Input.Size = UDim2.new(1, -20, 0, 35)
+Input.Position = UDim2.new(0, 10, 1, -40)
+Input.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+Input.PlaceholderText = "Send to Channel-A..."
+Input.Text = ""
+Input.TextColor3 = Color3.new(1, 1, 1)
+Input.Font = Enum.Font.SourceSans
+Input.TextSize = 16
 
---// Message UI Builder (Avatar + [Name]: Message)
-local function addMessage(name, msg, userId)
-    local F = Instance.new("Frame", Chat)
-    F.Size = UDim2.new(1, 0, 0, 45)
-    F.BackgroundTransparency = 1
-    F.Name = "MsgFrame"
+-- [[ CHAT LOGIC ]]
 
-    local Avatar = Instance.new("ImageLabel", F)
-    Avatar.Size = UDim2.fromOffset(40, 40)
-    -- This fetches the headshot for the sender
-    Avatar.Image = (userId and tonumber(userId)) 
-        and ("https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=420&height=420&format=png")
-        or "rbxassetid://15243170423"
-    Instance.new("UICorner", Avatar).CornerRadius = UDim.new(1, 0)
+local function addMessage(user, msg, source)
+    local Frame = Instance.new("Frame", Scroll)
+    Frame.Size = UDim2.new(1, 0, 0, 50)
+    Frame.BackgroundTransparency = 1
+    
+    local Img = Instance.new("ImageLabel", Frame)
+    Img.Size = UDim2.new(0, 45, 0, 45)
+    Img.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    Img.BorderSizePixel = 0
 
-    local Text = Instance.new("TextLabel", F)
-    Text.Position = UDim2.fromOffset(50, 0)
-    Text.Size = UDim2.new(1, -50, 1, 0)
-    Text.RichText = true
-    Text.TextWrapped = true
-    Text.TextXAlignment = Enum.TextXAlignment.Left
-    Text.TextYAlignment = Enum.TextYAlignment.Top
-    Text.Font = Enum.Font.SourceSans
-    Text.TextSize = 16
-    Text.TextColor3 = Color3.new(1,1,1)
-    Text.BackgroundTransparency = 1
-    -- Requested Format: [Display Name]: Message
-    Text.Text = "<b>[" .. name .. "]</b>: " .. msg
+    if source == "Game" then
+        -- Clean name for headshot lookup
+        local cleanName = user:gsub(" %b()", ""):gsub(" %b[]", "")
+        local success, userId = pcall(function() return Players:GetUserIdFromNameAsync(cleanName) end)
+        if success then
+            Img.Image = "rbxthumb://type=AvatarHeadShot&id="..userId.."&w=150&h=150"
+        else
+            Img.Image = "rbxassetid://15563533221"
+        end
+    else
+        Img.Image = "rbxassetid://15563533221" -- Discord Icon
+    end
 
-    Chat.CanvasPosition = Vector2.new(0, 1e6)
+    local Content = Instance.new("TextLabel", Frame)
+    Content.Position = UDim2.new(0, 55, 0, 0)
+    Content.Size = UDim2.new(1, -60, 1, 0)
+    Content.RichText = true
+    -- Color the name: Discord users are blue, Game users are green
+    local nameColor = (source == "Game") and "#00FF96" or "#5865F2"
+    Content.Text = "<b><font color='"..nameColor.."'>[" .. user .. "]</font></b>\n" .. msg
+    Content.TextColor3 = Color3.new(1, 1, 1)
+    Content.TextXAlignment = "Left"
+    Content.TextYAlignment = "Top"
+    Content.TextWrapped = true
+    Content.BackgroundTransparency = 1
+    Content.Font = Enum.Font.SourceSans
+    Content.TextSize = 16
+    
+    Scroll.CanvasPosition = Vector2.new(0, Scroll.AbsoluteCanvasSize.Y + 100)
 end
 
---// Relay Fetch Loop
-local lastBody = ""
-task.spawn(function()
-    while task.wait(3) do
-        local ok, res = pcall(function()
-            return request({
-                Url = FEED_URL,
-                Method = "GET",
-                Headers = {
-                     ["User-Agent"] = "Mozilla/5.0",
-                     ["Accept"] = "application/json"
-    }
-})
-
-        end)
-
-        if ok and res and res.Body then
-            Status.Text = "✅ Connected"
-            Status.TextColor3 = Color3.fromRGB(0, 255, 0)
-
-            if res.Body ~= lastBody and res.Body ~= "[]" then
-                lastBody = res.Body
-                local success, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
-
-                if success and type(data) == "table" then
-                    for _, v in ipairs(Chat:GetChildren()) do
-                        if v.Name == "MsgFrame" then v:Destroy() end
-                    end
-                    for i = #data, 1, -1 do
-                        addMessage(tostring(data[i].name or "Unknown"), tostring(data[i].msg or ""), data[i].userId)
-                    end
-                end
-            end
-        else
-            Status.Text = "❌ Relay Error"
-            Status.TextColor3 = Color3.fromRGB(255, 80, 80)
+-- Sending Logic
+Input.FocusLost:Connect(function(enter)
+    if enter and Input.Text ~= "" then
+        local msg = Input.Text
+        Input.Text = ""
+        
+        local req = (syn and syn.request) or http_request or request
+        if req then
+            req({
+                Url = webhookURL,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode({
+                    ["content"] = msg,
+                    ["username"] = lp.DisplayName .. " (Xeno)"
+                })
+            })
         end
     end
 end)
 
---// Send Logic (Instant Sync)
-Input.FocusLost:Connect(function(enter)
-    if enter and Input.Text ~= "" then
-        local myMsg = Input.Text
-        
-        -- Show your own message locally immediately
-        addMessage(LP.DisplayName, myMsg, LP.UserId)
-
-        pcall(function()
-            request({
-                Url = WEBHOOK_URL,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = HttpService:JSONEncode({
-                    ["content"] = myMsg,
-                    ["username"] = LP.DisplayName .. " (@" .. LP.Name .. ")"
-                })
-            })
-        end)
-        
-        Input.Text = ""
+-- Polling Logic
+task.spawn(function()
+    while true do
+        local success, response = pcall(function() return game:HttpGet(firebaseURL) end)
+        if success and response ~= "null" then
+            local data = HttpService:JSONDecode(response)
+            if data.content ~= lastMsg then
+                lastMsg = data.content
+                addMessage(data.user or "Admin", data.content, data.source)
+            end
+        end
+        task.wait(1)
     end
 end)

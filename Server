@@ -105,9 +105,11 @@ task.spawn(function()
                 Url = FEED_URL,
                 Method = "GET",
                 Headers = {
-                    ["User-Agent"] = "Roblox-Internal"
-                }
-            })
+                     ["User-Agent"] = "Mozilla/5.0",
+                     ["Accept"] = "application/json"
+    }
+})
+
         end)
 
         if ok and res and res.Body then
